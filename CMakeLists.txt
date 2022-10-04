@@ -6,8 +6,9 @@ set(CMAKE_CXX_FLAGS "-O3 -fopenmp")
 
 set(OPENSSL_USE_STATIC_LIBS TRUE)
 find_package(OpenSSL REQUIRED)
+find_package(CURL REQUIRED) 
 
 add_executable(parser ./src/main.cpp)
 
 include_directories(include)
-target_link_libraries(parser "/usr/local/lib/libsecp256k1.a" OpenSSL::Crypto)
+target_link_libraries(parser "/usr/local/lib/libsecp256k1.a" OpenSSL::Crypto ${CURL_LIBRARIES})

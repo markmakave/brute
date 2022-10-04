@@ -1,5 +1,8 @@
 #include <iostream>
 #include <string>
+#include <fstream>
+#include <chrono>
+#include <thread>
 
 #include <cstdint>
 #include <cstring>
@@ -9,32 +12,61 @@
 #include <openssl/sha.h>
 #include <openssl/ripemd.h>
 
+#include <curl/curl.h>
+
 #include <unistd.h>
 #include <fcntl.h>
 
-std::string public_key_generate(uint8_t privkey[32]);
-
-void print(uint8_t* data, size_t size)
-{
-    for (int i = 0; i < size; ++i) printf("%02X", data[i]);
-    printf("\n");
-}
-
+std::string generate_address(uint8_t privkey[32]);
 
 int main()
 {
+    std::string json;
 
-    uint8_t privkey[32] = {
-        0x1C, 0xBA, 0xD4, 0x48, 0xF6, 0xAE, 0x48, 0x69,
-        0x98, 0x4E, 0x4C, 0x26, 0x84, 0x13, 0xB2, 0xE3,
-        0x03, 0xBE, 0xC4, 0xCC, 0x11, 0xCD, 0x83, 0x64,
-        0x80, 0x91, 0x15, 0xFB, 0x2E, 0xB3, 0x6B, 0x35
-    };
+    unsigned iteration = 0;
+    while (true)
+    {
+        std::cout << "\033[33m" << "Iteration " << iteration++ << "\033[0m" << " - ";
+
+        uint8_t privkey[32];
+
+        std::string url = "https://blockchain.info/balance?active=";
+
+        int fd = open("/dev/random", O_RDONLY);
+        for (int i = 0; i < 100 - 1; ++i)
+        {
+            read(fd, privkey, sizeof(privkey));
+            url += "|" + generate_address(privkey);
+        }
+        close(fd);
+
+        CURL* curl = curl_easy_init();
+        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, +[](char *ptr, size_t size, size_t nmemb, std::string* data) {
+            data->append(ptr, size*nmemb);
+            return size*nmemb;
+        });
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &json);
+        curl_easy_perform(curl);
+        curl_easy_cleanup(curl);
+
+        size_t position = -1;
+        while ((position = json.find("final_balance", position + 1)) != std::string::npos)
+        {
+            auto temp = json.substr(position, 16);
+            if (temp.back() != '0')
+            {   
+                std::cout << "\033[1;32m" << "SUCCESS" << "\033[0m" << std::endl;
+                break;
+            }
+        }
+
+        std::cout << "\033[1;31m" << "FAIL" << "\033[0m" << std::endl;
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
     
-
-    #pragma omp parallel for
-    for (int i = 0; i < 100; ++i)
-        public_key_generate(privkey);
+    std::ofstream dump("dump.json");
+    dump << json;
 
     return 0;
 }
@@ -88,8 +120,7 @@ bool base58(char *b58, size_t *b58sz, const uint8_t *data, size_t binsz)
 	return true;
 }
 
-
-std::string public_key_generate(uint8_t privkey[32])
+std::string generate_address(uint8_t privkey[32])
 {
 
 // Stage 1 /////////////////////////////////////////////////////////////////
