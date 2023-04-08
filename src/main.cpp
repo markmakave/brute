@@ -1,8 +1,11 @@
 #include <iostream>
+#include <iomanip>
 #include <string>
+#include <sstream>
 #include <fstream>
 #include <chrono>
 #include <thread>
+#include <array>
 
 #include <cstdint>
 #include <cstring>
@@ -19,24 +22,26 @@
 
 std::string generate_address(uint8_t privkey[32]);
 
+#define BATCH_SIZE 400
+
 int main()
 {
-    std::string json;
+    std::array<std::pair<uint8_t[32], std::string>, BATCH_SIZE> cache;
+    int fd = open("/dev/random", O_RDONLY);
 
     unsigned iteration = 0;
     while (true)
     {
-        std::cout << "\033[33m" << "Iteration " << iteration++ << "\033[0m" << " - ";
-
-        uint8_t privkey[32];
+        std::cout << "\033[2J\r" << "\033[33m" << "Iteration " << iteration++ << "\033[0m" << " - ";
+        std::flush(std::cout);
 
         std::string url = "https://blockchain.info/balance?active=";
-
-        int fd = open("/dev/random", O_RDONLY);
-        for (int i = 0; i < 100 - 1; ++i)
+        for (int i = 0; i < BATCH_SIZE; ++i)
         {
-            read(fd, privkey, sizeof(privkey));
-            url += "|" + generate_address(privkey);
+            read(fd, cache[i].first, 32);
+            cache[i].second = generate_address(cache[i].first);
+
+            url += "|" + cache[i].second;
         }
         close(fd);
 
@@ -46,27 +51,56 @@ int main()
             data->append(ptr, size*nmemb);
             return size*nmemb;
         });
+
+        std::string json;
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, &json);
         curl_easy_perform(curl);
         curl_easy_cleanup(curl);
 
-        size_t position = -1;
-        while ((position = json.find("final_balance", position + 1)) != std::string::npos)
+        for (const auto& [key, addr] : cache)
         {
-            auto temp = json.substr(position, 16);
-            if (temp.back() != '0')
-            {   
-                std::cout << "\033[1;32m" << "SUCCESS" << "\033[0m" << std::endl;
-                break;
+            auto addr_pos = json.find(addr);
+            if (addr_pos == std::string::npos)
+            {
+                throw std::runtime_error("No such address" + addr + "\n" + json);
+            }
+
+            auto balance_pos = json.find("final_balance", addr_pos);
+            if (balance_pos == std::string::npos)
+            {
+                throw std::runtime_error("No balance found for address");
+            }
+
+
+            std::stringstream ss(json.substr(balance_pos + 15));
+
+            int64_t balance;
+            ss >> balance;
+
+            if (balance != 0)
+            {
+                std::cout << "\033[1;32m" << "SUCCESS" << "\033[0m";
+                
+
+                std::ofstream dump("dump.txt");
+
+                dump << "Privkey: ";
+                for (int i = 0; i < 32; ++i)
+                    dump << std::hex << std::setfill('0') << std::setw(2) << (int)key[i];
+                dump << '\n';
+                dump << "Address: " << addr << '\n';
+                dump << "Balance: " << std::dec << balance << '\n';
+
+                return 0;
             }
         }
 
-        std::cout << "\033[1;31m" << "FAIL" << "\033[0m" << std::endl;
+        std::cout << "\033[1;31m" << "FAIL" << "\033[0m ";
+        std::cout << "Addresses checked: " << iteration * BATCH_SIZE;
+        std::flush(std::cout);
+
         std::this_thread::sleep_for(std::chrono::seconds(1));
     }
-    
-    std::ofstream dump("dump.json");
-    dump << json;
 
     return 0;
 }

@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.22)
 
 project(parser LANGUAGES C CXX)
 
-set(CMAKE_CXX_FLAGS "-O3 -fopenmp")
+set(CMAKE_CXX_FLAGS "-O3")
 
 set(OPENSSL_USE_STATIC_LIBS TRUE)
 find_package(OpenSSL REQUIRED)
