@@ -10,5 +10,10 @@ find_package(CURL REQUIRED)
 
 add_executable(parser ./src/main.cpp)
 
-include_directories(include)
-target_link_libraries(parser "/usr/local/lib/libsecp256k1.a" OpenSSL::Crypto ${CURL_LIBRARIES})
+include_directories(include lib/json/single_include)
+target_link_libraries(parser 
+    /usr/local/lib/libsecp256k1.a
+    OpenSSL::Crypto 
+    ${CURL_LIBRARIES}
+    /usr/lib/aarch64-linux-gnu/libcurlpp.a
+)
