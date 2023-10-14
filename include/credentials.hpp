@@ -54,6 +54,10 @@ public:
 
     address() : _data{} {}
 
+    address(const char* s) {
+        std::strncpy(_data, s, sizeof(_data));
+    }
+
     address(const key& k) {
         hash(k._data, _data);
     }
@@ -67,10 +71,19 @@ public:
     }
 
     void operator = (const char* s) {
-        int len = std::strlen(s);
-        for (int i = 0; i < len; ++i)
-            _data[i] = s[i];
-        _data[len] = 0;
+        std::strncpy(_data, s, sizeof(_data));
+    }
+
+    bool operator > (const address& a) const {
+        return std::strcmp(_data, a._data) > 0;
+    }
+
+    bool operator < (const address& a) const {
+        return std::strcmp(_data, a._data) < 0;
+    }
+
+    bool operator == (const address& a) const {
+        return std::strcmp(_data, a._data) == 0;
     }
 
 protected:

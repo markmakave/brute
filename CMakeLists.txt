@@ -15,5 +15,6 @@ target_link_libraries(parser
     /usr/local/lib/libsecp256k1.a
     OpenSSL::Crypto 
     ${CURL_LIBRARIES}
-    /usr/lib/aarch64-linux-gnu/libcurlpp.a
+    # /usr/lib/aarch64-linux-gnu/libcurlpp.a
+    /usr/lib/x86_64-linux-gnu/libcurlpp.a
 )

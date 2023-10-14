@@ -1,42 +1,42 @@
-#include "credentials.hpp"
-#include "blockchain.hpp"
-#include "notifier.hpp"
+#include "database.hpp"
+#include "worker.hpp"
 
-int main() {
+#include <chrono>
 
-    btc::blockchain blockchain;
+#define BATCH 1000
 
-    int64_t iteration = 0;
+int main(int argc, char** argv) {
+    int nworkers = 4;
+    if (argc > 1)
+        nworkers = std::atoi(argv[1]);
+
+    btc::database db("../resource/blockchair_bitcoin_addresses_latest.tsv");
+
+    std::vector<btc::worker> workers;
+    for (int i = 0; i < nworkers; ++i)
+        workers.emplace_back(db, BATCH);
+
+    for (auto& w : workers)
+        w.run();
+
     while (true) {
-        iteration++;
-
-        std::vector<btc::key> keys(400);
-        std::vector<btc::address> addresses(keys.size());
-        std::transform(keys.begin(), keys.end(), addresses.begin(), [](btc::key& k){ return btc::address(k); });
-
-        // if (iteration == 5)
-        //     addresses[30] = "bc1qn0h74msknqpsn8hgn4fght98mykcwkl5tse485";
-
-        auto balances = blockchain.check_balance(addresses);
-
-        for (int i = 0; i < balances.size(); ++i)
-            if (balances[i] != 0) {
-                std::stringstream message;
-                message << "Fount non-zero balance\n"
-                        "Key:     " << keys[i]      << "\n"
-                        "Address: " << addresses[i] << "\n"
-                        "Balance: " << balances[i]  << "\n";
-                        
-                btc::notifier::notify(827454744, message.str());
-
-                exit(1);
-            }
-
-        if (iteration % 10000 == 0) {
-            std::string message = std::to_string(iteration) + " iterations have passed";
-            btc::notifier::notify(827454744, message);
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        int64_t total_checked = 0;
+        double avg_time = 0;
+        
+        for (auto& w : workers) {
+            total_checked += w.iterations();
+            avg_time += w.time();
         }
+        total_checked *= BATCH;
+        avg_time /= workers.size();
+
+        std::cout << "\033[2JTotal checked: " << total_checked << std::endl;
+        std::cout << "Throughput: " << BATCH * workers.size() / avg_time << " tx/s" << std::endl;
     }
+
+    for (auto& w : workers)
+        w.stop();
 
     return 0;
 }
