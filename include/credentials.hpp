@@ -9,6 +9,15 @@
 #include <openssl/sha.h>
 #include <openssl/ripemd.h>
 
+#include <unordered_map>
+
+namespace btc {
+class address; 
+}
+
+template <>
+struct std::hash<btc::address>;
+
 namespace btc {
 
 void hash(const uint8_t* key, char* address);
@@ -20,9 +29,9 @@ public:
     key() {
         uint64_t* field = (uint64_t*)_data;
 
-        static std::random_device rd;
-        static std::mt19937_64 gen(rd());
-        static std::uniform_int_distribution<uint64_t> dis(0, UINT64_MAX);
+        thread_local static std::random_device rd;
+        thread_local static std::mt19937_64 gen(rd());
+        thread_local static std::uniform_int_distribution<uint64_t> dis(0, UINT64_MAX);
 
         for (int i = 0; i < 4; ++i)
             field[i] = dis(gen);
@@ -49,7 +58,11 @@ protected:
     uint8_t _data[32];
 };
 
+
+
+
 class address {
+    friend struct std::hash<btc::address>;
 public:
 
     address() : _data{} {}
@@ -90,6 +103,7 @@ protected:
 
     char _data[64];
 };
+
 
 static bool base58(char *b58, size_t *b58sz, const uint8_t *data, size_t binsz)
 {
@@ -228,3 +242,20 @@ void hash(const uint8_t* key, char* address) {
 }
 
 }
+
+
+template <>
+struct std::hash<btc::address>
+{
+    std::size_t operator()(const btc::address& a) const
+    {
+        const char* str = a._data;
+        std::size_t hash = 5381;
+        int c;
+
+        while (c = *str++)
+            hash = ((hash << 5) + hash) + c; /* hash * 33 + c */
+
+        return hash;
+    }
+};

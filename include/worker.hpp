@@ -4,19 +4,24 @@
 #include <atomic>
 #include <algorithm>
 #include <iomanip>
+#include <mutex>
+#include <set>
 
 #include "credentials.hpp"
 #include "database.hpp"
 #include "notifier.hpp"
+
+std::set<btc::key> checked;
+std::mutex mutex;
 
 namespace btc {
 
 class worker {
 public:
 
-    worker(const database& db, int batch) : _db(&db), _batch(batch) {}
+    worker(const database& db) : _db(&db) {}
 
-    worker(worker&& w) : _db(w._db), _batch(w._batch) {
+    worker(worker&& w) : _db(w._db) {
         w.stop();
     }
 
@@ -35,64 +40,58 @@ public:
             _thread.join();
     }
 
-    int64_t iterations() const {
+    int total() {
         return _iterations;
     }
 
-    double time() const {
-        double avg = 0;
-        for (size_t i = 0; i < _time.size(); ++i)
-            avg += _time[i];
-        avg /= _time.size();
-        avg /= 1000;
-        return avg;
+    int throughput() {
+        return _throughput;
     }
 
 private:
 
     void loop() {
-        while (!_stop) {
+        _time = std::chrono::high_resolution_clock::now();
+
+        while (not _stop) {
             _iterations++;
 
             auto now = std::chrono::system_clock::now();
 
-            std::vector<btc::key> keys(_batch);
-            std::vector<btc::address> addresses(_batch);
-            std::transform(keys.begin(), keys.end(), addresses.begin(), [](btc::key& k){ return btc::address(k); });
+            btc::key key;
+            btc::address address(key);
 
-            // if (iteration == 5)
-            //     addresses[30] = "bc1qn0h74msknqpsn8hgn4fght98mykcwkl5tse485";
+            // if (_iterations == 500000)
+            //     address = "bc1qn0h74msknqpsn8hgn4fght98mykcwkl5tse485";
 
-            auto balances = _db->check_balance(addresses);
+            auto balance = (*_db)[address];
 
-            for (size_t i = 0; i < balances.size(); ++i)
-                if (balances[i] != 0) {
-                    std::stringstream message;
-                    message << "Found non-zero balance\n"
-                            "Key:     " << keys[i]      << "\n"
-                            "Address: " << addresses[i] << "\n"
-                            "Balance: " << balances[i]  << "\n";
-                            
-                    btc::notifier::notify(827454744, message.str());
-                }
+            if (balance != 0) {
+                std::stringstream message;
+                message << "Found non-zero balance\n"
+                        "Key:     " << key     << "\n"
+                        "Address: " << address << "\n"
+                        "Balance: " << balance  << "\n";
+                        
+                btc::notifier::notify(827454744, message.str());
+            }
 
-            // Collect metrics
-            int64_t time = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - now).count();
-            _time[_time_pos++] = time;
-            _time_pos %= _time.size();
+            if (_iterations % 1000 == 0) {
+                int64_t delay = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - _time).count();
+                _throughput = 1000 / (delay / 1000000.0);
+                _time = std::chrono::high_resolution_clock::now();
+            }
         }
     }
 
 protected:
     const database* _db;
-    int _batch;
 
     std::atomic<bool> _stop;
     std::thread _thread;
 
-    int64_t _iterations = 0;
-    size_t _time_pos = 0;
-    std::array<int64_t, 100> _time;
+    int64_t _iterations = 0, _throughput = 0;
+    std::chrono::high_resolution_clock::time_point _time;
 }; 
 
 }

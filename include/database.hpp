@@ -1,8 +1,13 @@
 #pragma once
 
 #include <map>
+#include <unordered_map>
 #include <fstream>
 #include <cassert>
+
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/mman.h>
 
 #include "credentials.hpp"
 
@@ -12,10 +17,10 @@ class database {
 public:
 
     database(const char* filename) {
+        std::cout << "Indexing " << filename << std::endl;
+
         std::ifstream file(filename);
         assert(file.is_open());
-
-        std::cout << "Indexing " << filename << std::endl;
 
         std::string line;
         std::getline(file, line);
@@ -41,17 +46,9 @@ public:
         return it->second;
     }
 
-    std::vector<int64_t> check_balance(const std::vector<address>& addresses) const {
-        std::vector<int64_t> balances(addresses.size());
-        for (int i = 0; i < addresses.size(); ++i)
-            balances[i] = operator[](addresses[i]);
-
-        return balances;
-    }
-
 protected:
 
-    std::map<address, int64_t> _cache;
+    std::unordered_map<address, int64_t> _cache;
 };
 
 }
