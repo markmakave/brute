@@ -1,13 +1,23 @@
 #pragma once
 
+#include <iostream>
 #include <cstdint>
+#include <cassert>
+
+#include <cuda_runtime.h>
 
 namespace lumina::ecdsa
 {
 
-using u8 = uint8_t;
+using u8  = uint8_t;
+using u16 = uint16_t;
 using u32 = uint32_t;
 using u64 = uint64_t;
+
+using i8  = int8_t;
+using i16 = int16_t;
+using i32 = int32_t;
+using i64 = int64_t;
 
 struct u256
 {
@@ -21,18 +31,14 @@ struct u256
     :   data{u0, u1, u2, u3}
     {}
 
-    __host__ __device__
-    u256(u64* data)
-    :   data{data[0], data[1], data[2], data[3]}
-    {}
-
     // Binary
 
-    __device__ __forceinline__
+    __host__ __device__ __forceinline__
     u256 operator+ (const u256& rhs) const
     {
         u256 x;
 
+        #ifdef __CUDA_ARCH__
         asm volatile (
             "add.cc.u64  %0, %4,  %5 ;"
             "addc.cc.u64 %1, %6,  %7 ;"
@@ -45,13 +51,22 @@ struct u256
               "l"(data[2]), "l"(rhs.data[2]),
               "l"(data[3]), "l"(rhs.data[3])
         );
+        #else
+        bool carry = false;
+        for (int i = 0; i < 4; ++i)
+        {
+            x.data[i] = data[i] + rhs.data[i] + carry;
+            carry = (data[i] + rhs.data[i]) < data[0];
+        }
+        #endif
 
         return x;
     }
 
-    __device__ __forceinline__
+    __host__ __device__ __forceinline__
     u256& operator+= (const u256& rhs)
     {
+        #ifdef __CUDA_ARCH__
         asm volatile (
             "add.cc.u64  %0, %0, %4 ;"
             "addc.cc.u64 %1, %1, %5 ;"
@@ -64,15 +79,19 @@ struct u256
               "l"(rhs.data[2]),
               "l"(rhs.data[3])
         );
+        #else
+        *this = *this + rhs;
+        #endif
 
         return *this;
     }
 
-    __device__ __forceinline__
+    __host__ __device__ __forceinline__
     u256 operator- (const u256& rhs) const
     {
         u256 x;
 
+        #ifdef __CUDA_ARCH__
         asm volatile (
             "sub.cc.u64  %0, %4,  %5 ;"
             "subc.cc.u64 %1, %6,  %7 ;"
@@ -85,13 +104,22 @@ struct u256
               "l"(data[2]), "l"(rhs.data[2]),
               "l"(data[3]), "l"(rhs.data[3])
         );
+        #else
+        bool borrow = false;
+        for (int i = 0; i < 4; ++i)
+        {
+            x.data[i] = data[i] - rhs.data[i] - borrow;
+            borrow = (data[i] - rhs.data[i]) > data[0];
+        }
+        #endif
 
         return x;
     }
 
-    __device__ __forceinline__
+    __host__ __device__ __forceinline__
     u256& operator-= (const u256& rhs)
     {
+        #ifdef __CUDA_ARCH__
         asm volatile (
             "sub.cc.u64  %0, %0, %4 ;"
             "subc.cc.u64 %1, %1, %5 ;"
@@ -104,15 +132,19 @@ struct u256
               "l"(rhs.data[2]),
               "l"(rhs.data[3])
         );
+        #else
+        *this = *this - rhs;
+        #endif
 
         return *this;
     }
 
-    __device__ __forceinline__
+    __host__ __device__ __forceinline__
     u256 operator* (const u256& rhs) const
     {
         u256 x;
 
+        #ifdef __CUDA_ARCH__
         asm volatile (
             "mul.lo.u64     %0, %4, %8      ;"
             "mul.lo.u64     %1, %5, %8      ;"
@@ -138,65 +170,62 @@ struct u256
             : "l"(data[0]),     "l"(data[1]),     "l"(data[2]),     "l"(data[3]),
               "l"(rhs.data[0]), "l"(rhs.data[1]), "l"(rhs.data[2]), "l"(rhs.data[3])
         );
+        #else
+        // #error "TODO"
+        #endif
 
         return x;
     }
 
-    __device__
+    __host__ __device__
     u256 operator/ (const u256& rhs) const
     {
-        // Algorithm D
+        #ifdef __CUDA_ARCH__
+
+        asm volatile (
+            ".reg .pred p   ;"
+            ""
+            "bfind."
+
+            :
+            :
+        )
+
+        #else
+        // Donald Knuth's Algorithm D
         assert(rhs != 0);
+        if (*this < rhs)
+            return 0;
 
-        // D1 Normlize
-
-        u256 y_norm = rhs;
-        u32 s = 0;
-        while (not (y_norm[0] & 0x8000000000000000))
-        {
-            y_norm = y_norm << 1;
-            s++;
-        }
-
-        u256 x_norm = (*this) << s;
-
-        // D2 Initalize
-
-        u256 q(0, 0, 0, 0), r = x_norm;
-        // if (*this < y) return {q, *this}; // If x < y, quotient is 0, remainder is x
-
-        // Main division loop
-        for (int i = 256 - 1; i >= 0; --i) {
-            // Shift remainder left and bring down next bit from x_norm
-            r = r << 1;
-            r[0] |= (x_norm[3] & (1ULL << 63)) >> 63; // Bring down the next bit
-            x_norm = x_norm << 1;
-
-            // Estimate quotient digit
-            uint64_t qhat = (r[3] == y_norm[3])
-                                ? ~0ULL
-                                : (uint128_t(r[3]) << 64 | r[2]) / y_norm[3];
-
-            // Multiply and subtract: r -= qhat * y_norm
-            u256 prod = y_norm * qhat;
-            if (prod > r) {
-                --qhat;
-                prod -= y_norm;
-            }
-            r -= prod;
-
-            // Set the quotient bit
-            q[i / 64] |= (qhat << (i % 64));
-        }
-
-        // Undo normalization on remainder
-        r >>= shift;
-
+        u32 m, n;
         
+        // PTX: use bfind
 
-        //
+        for (m = 3; m > 0; --m)
+            if (data[m]) break;
 
-        return q;
+        for (n = 3; n > 0; --n)
+            if (rhs[n]) break;
+
+        ++n; ++m;
+        m = m - n;
+
+        // D1 Normalize
+
+
+        std::cout << "m: " << m << ", n: " << n << '\n';
+
+        #endif
+    }
+
+    __host__ __device__
+    static void div_mod(
+        const u256& x,
+        const u256& y,
+              u256& div,
+              u256& mod
+    ) {
+        // Algorithm D
     }
 
     __device__ __forceinline__
@@ -207,25 +236,32 @@ struct u256
 
     // Unary
 
-    __device__ __forceinline__
+    __host__ __device__ __forceinline__
     u256 operator~ () const
     {
         return { ~data[0], ~data[1], ~data[2], ~data[3] };
     }
 
-    __device__ __forceinline__
+    __host__ __device__ __forceinline__
     u256 operator- () const
     {
         return ~(*this) + 1;
     }
 
+    __host__ __device__
+    u256& operator++ ()
+    {
+        
+    }
+
     // Bitshift
 
-    __device__
+    __host__ __device__
     u256 operator<< (u32 n) const
     {
         u256 x;
 
+        #ifdef __CUDA_ARCH__
         asm volatile (
             ".reg.b64   %r          ;"
 
@@ -246,15 +282,24 @@ struct u256
             : "=l"(x.data[0]), "=l"(x.data[1]), "=l"(x.data[2]), "=l"(x.data[3])
             : "l"(data[0]), "l"(data[1]), "l"(data[2]), "l"(data[3]), "r"(n), "r"(64 - n)
         );
+        #else
+        for (i32 i = 3; i >= 0; i--)
+        {
+            x[i] = data[i] << n;
+            if (i)
+                x[i] |= data[i - 1] >> (64 - n);
+        }
+        #endif
 
         return x;
     }
 
-    __device__
+    __host__ __device__
     u256 operator>> (u32 n) const
     {
         u256 x;
 
+        #ifdef __CUDA_ARCH__
         asm volatile (
             ".reg.b64   %r          ;"
 
@@ -275,28 +320,39 @@ struct u256
             : "=l"(x.data[0]), "=l"(x.data[1]), "=l"(x.data[2]), "=l"(x.data[3])
             : "l"(data[0]), "l"(data[1]), "l"(data[2]), "l"(data[3]), "r"(n), "r"(64 - n)
         );
+        #else
+        for (i32 i = 0; i < 4; i++)
+        {
+            x[i] = data[i] >> n;
+            if (i < 3)
+                x[i] |= data[i + 1] << (64 - n);
+        }
+        #endif
 
         return x;
     }
 
     // Comparison
     
-    __device__ __forceinline__
-    bool operator> (const u256& rhs) const
+    __host__ __device__ __forceinline__
+    bool operator< (const u256& rhs) const
     {
         #pragma unroll
-        for(int i = 4; i >= 0; --i)
-            if (data[i] > rhs[i])
-                return true;
+        for(int i = 3; i >= 0; --i)
+        {
+            if (data[i] == rhs[i])
+                continue;
+            return data[i] < rhs[i];
+        }
 
         return false;
     }
 
-    __device__ __forceinline__
+    __host__ __device__ __forceinline__
     bool operator== (const u256& rhs) const
     {
         #pragma unroll
-        for(int i = 4; i >= 0; --i)
+        for(int i = 3; i >= 0; --i)
             if (data[i] != rhs[i])
                 return false;
 

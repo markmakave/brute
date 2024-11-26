@@ -8,7 +8,8 @@ namespace lumina::ecdsa
 // __constant__ static u256_modulo GX = { 0x79BE667E, 0xF9DCBBAC, 0x55A06295, 0xCE870B07, 0x029BFCDB, 0x2DCE28D9, 0x59F2815B, 0x16F81798 };
 // __constant__ static u256_modulo GY = { 0x483ADA77, 0x26A3C465, 0x5DA4FBFC, 0x0E1108A8, 0xFD17B448, 0xA6855419, 0x9C47D08F, 0xFB10D4B8 };
 
-__constant__ static u64 P[4]  = { 0xFFFFFC2FFFFFFFFE, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF };
+__constant__ static u64 P_raw[4]  = { 0xFFFFFC2FFFFFFFFE, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF };
+__constant__ static u256 P;
 
 static u256 inverse_mod(const u256& x, const u256& m)
 {
@@ -44,7 +45,7 @@ static u256 inverse_mod(const u256& x, const u256& m)
 }
 
 __device__
-static u256 div_mod(const u256& lhs, const u256& rhs, const u256& m)
+static u256 euclidean_division(const u256& lhs, const u256& rhs, const u256& m)
 {
     return lhs * inverse_mod(rhs, m) % m;
 }
@@ -56,7 +57,7 @@ struct point
     __device__
     point operator+ (const point& rhs) const
     {
-        u256 slope = div_mod((y - rhs.y), (x - rhs.x), P);
+        u256 slope = euclidean_division((y - rhs.y), (x - rhs.x), P);
         u256 x_r = slope * slope - x - rhs.x;
         u256 y_r = y + slope * (x_r - x);
 

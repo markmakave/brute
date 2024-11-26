@@ -12,22 +12,27 @@
 
 #define CUDA_CHECK(x) if (auto error = (x); error != cudaSuccess) std::cerr << "CUDA Error " __FILE__ ":" << __LINE__ << ": " << cudaGetErrorString(error) << '\n';
 
-__managed__ lumina::ecdsa::u256 x;
+// __managed__ lumina::ecdsa::u256 x;
 
+// __global__ void kernel()
+// {
+//     x = x / 3;
+// }
 
-__global__ void kernel()
-{
-    x = x / 3;
-}
+#include <cmath>
 
 int main()
 {
-    x = lumina::ecdsa::u256(11, 0, 0, 0);
+    lumina::ecdsa::u256 x(0, 1, 1, 0);
+    std::cout << x << '\n';
+
+    x = x / 3;
 
     std::cout << x << '\n';
-    kernel <<<1, 1>>> ();
-    CUDA_CHECK(cudaDeviceSynchronize());
-    std::cout << x << '\n';
+
+    // kernel <<<1, 1>>> ();
+    // CUDA_CHECK(cudaDeviceSynchronize());
+
 
     // static constexpr size_t N = 1024 * 1024;
 
