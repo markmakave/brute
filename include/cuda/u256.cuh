@@ -21,130 +21,113 @@ using i64 = int64_t;
 
 struct u256
 {
-    u64 data[4];
+    union {
+        u64 u64_data[4];
+        u32 u32_data[8];
+        u16 u16_data[16];
+        u8  u8_data[32];
+    };
 
+    __host__ __device__
     u256()
     {}
 
     __host__ __device__
     u256(u64 u0, u64 u1 = 0, u64 u2 = 0, u64 u3 = 0)
-    :   data{u0, u1, u2, u3}
+    :   u64_data{u0, u1, u2, u3}
     {}
 
     // Binary
 
-    __host__ __device__ __forceinline__
+    __device__ __forceinline__
     u256 operator+ (const u256& rhs) const
     {
         u256 x;
 
-        #ifdef __CUDA_ARCH__
         asm volatile (
             "add.cc.u64  %0, %4,  %5 ;"
             "addc.cc.u64 %1, %6,  %7 ;"
             "addc.cc.u64 %2, %8,  %9 ;"
             "addc.u64    %3, %10, %11;"
 
-            : "=l"(x.data[0]), "=l"(x.data[1]), "=l"(x.data[2]), "=l"(x.data[3])
-            : "l"(data[0]), "l"(rhs.data[0]),
-              "l"(data[1]), "l"(rhs.data[1]),
-              "l"(data[2]), "l"(rhs.data[2]),
-              "l"(data[3]), "l"(rhs.data[3])
+            : "=l"(x.u64_data[0]), "=l"(x.u64_data[1]), "=l"(x.u64_data[2]), "=l"(x.u64_data[3])
+            : "l"(u64_data[0]), "l"(rhs.u64_data[0]),
+              "l"(u64_data[1]), "l"(rhs.u64_data[1]),
+              "l"(u64_data[2]), "l"(rhs.u64_data[2]),
+              "l"(u64_data[3]), "l"(rhs.u64_data[3])
         );
-        #else
-        bool carry = false;
-        for (int i = 0; i < 4; ++i)
-        {
-            x.data[i] = data[i] + rhs.data[i] + carry;
-            carry = (data[i] + rhs.data[i]) < data[0];
-        }
-        #endif
 
         return x;
     }
 
-    __host__ __device__ __forceinline__
+    __device__ __forceinline__
     u256& operator+= (const u256& rhs)
     {
-        #ifdef __CUDA_ARCH__
         asm volatile (
             "add.cc.u64  %0, %0, %4 ;"
             "addc.cc.u64 %1, %1, %5 ;"
             "addc.cc.u64 %2, %2, %6 ;"
             "addc.u64    %3, %3, %7 ;"
 
-            : "=l"(data[0]), "=l"(data[1]), "=l"(data[2]), "=l"(data[3])
-            : "l"(rhs.data[0]),
-              "l"(rhs.data[1]),
-              "l"(rhs.data[2]),
-              "l"(rhs.data[3])
+            : "=l"(u64_data[0]), "=l"(u64_data[1]), "=l"(u64_data[2]), "=l"(u64_data[3])
+            : "l"(rhs.u64_data[0]),
+              "l"(rhs.u64_data[1]),
+              "l"(rhs.u64_data[2]),
+              "l"(rhs.u64_data[3])
         );
-        #else
-        *this = *this + rhs;
-        #endif
 
         return *this;
     }
 
-    __host__ __device__ __forceinline__
+    __device__ __forceinline__
     u256 operator- (const u256& rhs) const
     {
         u256 x;
 
-        #ifdef __CUDA_ARCH__
         asm volatile (
             "sub.cc.u64  %0, %4,  %5 ;"
             "subc.cc.u64 %1, %6,  %7 ;"
             "subc.cc.u64 %2, %8,  %9 ;"
             "subc.u64    %3, %10, %11;"
 
-            : "=l"(x.data[0]), "=l"(x.data[1]), "=l"(x.data[2]), "=l"(x.data[3])
-            : "l"(data[0]), "l"(rhs.data[0]),
-              "l"(data[1]), "l"(rhs.data[1]),
-              "l"(data[2]), "l"(rhs.data[2]),
-              "l"(data[3]), "l"(rhs.data[3])
+            : "=l"(x.u64_data[0]), "=l"(x.u64_data[1]), "=l"(x.u64_data[2]), "=l"(x.u64_data[3])
+            : "l"(u64_data[0]), "l"(rhs.u64_data[0]),
+              "l"(u64_data[1]), "l"(rhs.u64_data[1]),
+              "l"(u64_data[2]), "l"(rhs.u64_data[2]),
+              "l"(u64_data[3]), "l"(rhs.u64_data[3])
         );
-        #else
-        bool borrow = false;
-        for (int i = 0; i < 4; ++i)
-        {
-            x.data[i] = data[i] - rhs.data[i] - borrow;
-            borrow = (data[i] - rhs.data[i]) > data[0];
-        }
-        #endif
 
         return x;
     }
 
-    __host__ __device__ __forceinline__
+    __device__ __forceinline__
     u256& operator-= (const u256& rhs)
     {
-        #ifdef __CUDA_ARCH__
         asm volatile (
             "sub.cc.u64  %0, %0, %4 ;"
             "subc.cc.u64 %1, %1, %5 ;"
             "subc.cc.u64 %2, %2, %6 ;"
             "subc.u64    %3, %3, %7 ;"
 
-            : "=l"(data[0]), "=l"(data[1]), "=l"(data[2]), "=l"(data[3])
-            : "l"(rhs.data[0]),
-              "l"(rhs.data[1]),
-              "l"(rhs.data[2]),
-              "l"(rhs.data[3])
+            : "=l"(u64_data[0]),
+              "=l"(u64_data[1]),
+              "=l"(u64_data[2]),
+              "=l"(u64_data[3])
+
+            : "l"(rhs.u64_data[0]),
+              "l"(rhs.u64_data[1]),
+              "l"(rhs.u64_data[2]),
+              "l"(rhs.u64_data[3])
         );
-        #else
-        *this = *this - rhs;
-        #endif
 
         return *this;
     }
 
-    __host__ __device__ __forceinline__
+    __device__ __forceinline__
     u256 operator* (const u256& rhs) const
     {
         u256 x;
 
-        #ifdef __CUDA_ARCH__
         asm volatile (
             "mul.lo.u64     %0, %4, %8      ;"
             "mul.lo.u64     %1, %5, %8      ;"
@@ -166,102 +149,105 @@ struct u256
 
             "mad.lo.u64     %3, %4, %11, %3 ;"
 
-            : "=l"(x.data[0]),  "=l"(x.data[1]),  "=l"(x.data[2]),  "=l"(x.data[3])
-            : "l"(data[0]),     "l"(data[1]),     "l"(data[2]),     "l"(data[3]),
-              "l"(rhs.data[0]), "l"(rhs.data[1]), "l"(rhs.data[2]), "l"(rhs.data[3])
+            : "=l"(x.u64_data[0]),
+              "=l"(x.u64_data[1]),
+              "=l"(x.u64_data[2]),
+              "=l"(x.u64_data[3])
+
+            : "l"(u64_data[0]),     "l"(u64_data[1]),     "l"(u64_data[2]),     "l"(u64_data[3]),
+              "l"(rhs.u64_data[0]), "l"(rhs.u64_data[1]), "l"(rhs.u64_data[2]), "l"(rhs.u64_data[3])
         );
-        #else
-        // #error "TODO"
-        #endif
 
         return x;
     }
 
-    __host__ __device__
+    __device__
     u256 operator/ (const u256& rhs) const
     {
-        #ifdef __CUDA_ARCH__
+        u256 div, mod;
+        // knuth::D(*this, rhs, div, mod);
+        div_mod(*this, rhs, div, mod);
+        return div;
+    }
 
-        asm volatile (
-            ".reg .pred p   ;"
-            ""
-            "bfind."
+    __device__
+    u256 operator% (const u256& rhs) const
+    {
+        u256 div, mod;
+        // knuth::D(*this, rhs, div, mod);
+        div_mod(*this, rhs, div, mod);
+        return mod;
+    }
 
-            :
-            :
-        )
-
-        #else
+    __device__
+    static void div_mod(
+        const u256& lhs,
+        const u256& rhs,
+              u256& div,
+              u256& mod
+    ) {
         // Donald Knuth's Algorithm D
         assert(rhs != 0);
-        if (*this < rhs)
-            return 0;
+        if (lhs < rhs)
+        {
+            div = 0;
+            mod = lhs;
+            return;
+        }
 
         u32 m, n;
         
-        // PTX: use bfind
+        for (m = 7; m > 0; --m)
+            if (lhs.u32_data[m]) break;
 
-        for (m = 3; m > 0; --m)
-            if (data[m]) break;
-
-        for (n = 3; n > 0; --n)
-            if (rhs[n]) break;
+        for (n = 7; n > 0; --n)
+            if (rhs.u32_data[n]) break;
 
         ++n; ++m;
         m = m - n;
 
         // D1 Normalize
 
+        u32 s;
+        asm volatile (
+            "bfind.shiftamt.u32 %0, %1;"
+            : "=r"(s)
+            :"r"(rhs.u32_data[n - 1])
+        );
+        assert(s < 32);
+        printf("s: %u\n", s);
 
-        std::cout << "m: " << m << ", n: " << n << '\n';
-
-        #endif
-    }
-
-    __host__ __device__
-    static void div_mod(
-        const u256& x,
-        const u256& y,
-              u256& div,
-              u256& mod
-    ) {
-        // Algorithm D
-    }
-
-    __device__ __forceinline__
-    u256 operator% (const u256& rhs) const
-    {
-        return (*this) - (*this) / rhs * rhs; 
+        u32 extension = lhs.u32_data[m - n] >> s;
+        
     }
 
     // Unary
 
-    __host__ __device__ __forceinline__
+    __device__ __forceinline__
     u256 operator~ () const
     {
-        return { ~data[0], ~data[1], ~data[2], ~data[3] };
+        return { ~u64_data[0], ~u64_data[1], ~u64_data[2], ~u64_data[3] };
     }
 
-    __host__ __device__ __forceinline__
+    __device__ __forceinline__
     u256 operator- () const
     {
         return ~(*this) + 1;
     }
 
-    __host__ __device__
+    __device__
     u256& operator++ ()
     {
-        
+        return *this += 1;
     }
 
     // Bitshift
 
-    __host__ __device__
+    __device__
     u256 operator<< (u32 n) const
     {
         u256 x;
 
-        #ifdef __CUDA_ARCH__
         asm volatile (
             ".reg.b64   %r          ;"
 
@@ -279,27 +265,57 @@ struct u256
             " or.b64    %1, %1, %r  ;"
             "shl.b64    %0, %4, %8  ;"
 
-            : "=l"(x.data[0]), "=l"(x.data[1]), "=l"(x.data[2]), "=l"(x.data[3])
-            : "l"(data[0]), "l"(data[1]), "l"(data[2]), "l"(data[3]), "r"(n), "r"(64 - n)
+            : "=l"(x.u64_data[0]),
+              "=l"(x.u64_data[1]),
+              "=l"(x.u64_data[2]),
+              "=l"(x.u64_data[3])
+
+            : "l"(u64_data[0]),
+              "l"(u64_data[1]),
+              "l"(u64_data[2]),
+              "l"(u64_data[3]), 
+              "r"(n), "r"(64 - n)
         );
-        #else
-        for (i32 i = 3; i >= 0; i--)
-        {
-            x[i] = data[i] << n;
-            if (i)
-                x[i] |= data[i - 1] >> (64 - n);
-        }
-        #endif
 
         return x;
     }
 
-    __host__ __device__
+    __device__
+    u256& operator<<= (u32 n)
+    {
+        asm volatile (
+            ".reg.b64   %r          ;"
+
+            "shl.b64    %3, %3, %8  ;"
+
+            "shr.b64    %r, %2, %5  ;"
+            " or.b64    %3, %3, %r  ;"
+            "shl.b64    %2, %2, %4  ;"
+
+            "shr.b64    %r, %1, %5  ;"
+            " or.b64    %2, %2, %r  ;"
+            "shl.b64    %1, %1, %4  ;"
+
+            "shr.b64    %r, %0, %5  ;"
+            " or.b64    %1, %1, %r  ;"
+            "shl.b64    %0, %0, %4  ;"
+
+            : "+l"(u64_data[0]),
+              "+l"(u64_data[1]),
+              "+l"(u64_data[2]),
+              "+l"(u64_data[3])
+
+            : "r"(n), "r"(64 - n)
+        );
+
+        return *this;
+    }
+
+    __device__
     u256 operator>> (u32 n) const
     {
         u256 x;
 
-        #ifdef __CUDA_ARCH__
         asm volatile (
             ".reg.b64   %r          ;"
 
@@ -317,43 +333,74 @@ struct u256
             " or.b64    %2, %2, %r  ;"
             "shr.b64    %3, %7, %8  ;"
 
-            : "=l"(x.data[0]), "=l"(x.data[1]), "=l"(x.data[2]), "=l"(x.data[3])
-            : "l"(data[0]), "l"(data[1]), "l"(data[2]), "l"(data[3]), "r"(n), "r"(64 - n)
+            : "=l"(x.u64_data[0]),
+              "=l"(x.u64_data[1]),
+              "=l"(x.u64_data[2]),
+              "=l"(x.u64_data[3])
+
+            : "l"(u64_data[0]),
+              "l"(u64_data[1]),
+              "l"(u64_data[2]),
+              "l"(u64_data[3]),
+              "r"(n), "r"(64 - n)
         );
-        #else
-        for (i32 i = 0; i < 4; i++)
-        {
-            x[i] = data[i] >> n;
-            if (i < 3)
-                x[i] |= data[i + 1] << (64 - n);
-        }
-        #endif
 
         return x;
     }
 
+    __device__
+    u256& operator>>= (u32 n)
+    {
+        asm volatile (
+            ".reg.b64   %r          ;"
+
+            "shr.b64    %0, %0, %4  ;"
+
+            "shl.b64    %r, %1, %5  ;"
+            " or.b64    %0, %0, %r  ;"
+            "shr.b64    %1, %1, %4  ;"
+
+            "shl.b64    %r, %2, %5  ;"
+            " or.b64    %1, %1, %r  ;"
+            "shr.b64    %2, %2, %4  ;"
+
+            "shl.b64    %r, %3, %5  ;"
+            " or.b64    %2, %2, %r  ;"
+            "shr.b64    %3, %3, %4  ;"
+
+            : "+l"(u64_data[0]),
+              "+l"(u64_data[1]),
+              "+l"(u64_data[2]),
+              "+l"(u64_data[3])
+
+            : "r"(n), "r"(64 - n)
+        );
+
+        return *this;
+    }
+
     // Comparison
     
-    __host__ __device__ __forceinline__
+    __device__ __forceinline__
     bool operator< (const u256& rhs) const
     {
         #pragma unroll
         for(int i = 3; i >= 0; --i)
         {
-            if (data[i] == rhs[i])
+            if (u64_data[i] == rhs.u64_data[i])
                 continue;
-            return data[i] < rhs[i];
+            return u64_data[i] < rhs.u64_data[i];
         }
 
         return false;
     }
 
-    __host__ __device__ __forceinline__
+    __device__ __forceinline__
     bool operator== (const u256& rhs) const
     {
         #pragma unroll
         for(int i = 3; i >= 0; --i)
-            if (data[i] != rhs[i])
+            if (u64_data[i] != rhs.u64_data[i])
                 return false;
 
         return true;
@@ -361,24 +408,13 @@ struct u256
 
     // utility
 
-    __host__ __device__ __forceinline__
-    u64& operator[] (size_t index)
-    {
-        return data[index];
-    }
-
-    __host__ __device__ __forceinline__
-    const u64& operator[] (size_t index) const
-    {
-        return data[index];
-    }
-
     __host__
     friend std::ostream& operator<< (std::ostream& os, const u256& x)
     {
         os << "0x";
         for (int i = 3; i >= 0; --i)
-            os << std::setw(16) << std::setfill('0') << std::hex << x.data[i];
+            os << std::setw(16) << std::setfill('0') << std::hex << x.u64_data[i];
+
         return os;
     }
 
