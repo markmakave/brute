@@ -15,7 +15,7 @@ __managed__ lumina::ecdsa::u256 x, x_div, x_mod;
 
 __global__ void kernel()
 {
-    lumina::ecdsa::u256 n(7);
+    lumina::ecdsa::u256 n(0xFF);
     x_div = x / n;
     x_mod = x % n;
 }
@@ -24,7 +24,7 @@ __global__ void kernel()
 
 int main()
 {
-    x = lumina::ecdsa::u256(13);
+    x = lumina::ecdsa::u256(0x00000004, 0x00000003, 0x00000002, 0x00000001);
 
     std::cout << x << '\n';
 

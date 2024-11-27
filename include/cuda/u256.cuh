@@ -293,29 +293,14 @@ struct u256
                   "l"(q_hat)
             );
 
-            // u -= q_hat_v
+            // u[j:j+n] -= q_hat_v[0:n]
             u32 borrow = false;
-            asm volatile (
-                "sub.cc.u64     %0, %0, %6 ;"
-                "subc.cc.u64    %1, %1, %7 ;"
-                "subc.cc.u64    %2, %2, %8 ;"
-                "subc.cc.u64    %3, %3, %9 ;"
-                "subc.cc.u64    %4, %4, %10;"
-                "addc.u32       %5,  0,  0 ;"
-
-                : "+l"(u._u64[0]),
-                  "+l"(u._u64[1]),
-                  "+l"(u._u64[2]),
-                  "+l"(u._u64[3]),
-                  "+l"(u._u64[4]),
-                  "=r"(borrow)
-
-                : "l"(q_hat_v._u64[0]),
-                  "l"(q_hat_v._u64[1]),
-                  "l"(q_hat_v._u64[2]),
-                  "l"(q_hat_v._u64[3]),
-                  "l"(q_hat_v._u64[4])
-            );
+            for (u32 i = 0; i <= n; ++i)
+            {
+                bool new_borrow = u._u32[j + i] < q_hat_v._u32[i] + borrow;
+                u._u32[j + i] -= q_hat_v._u32[i] + borrow;   
+                borrow = new_borrow;
+            }
 
             // D5
 
