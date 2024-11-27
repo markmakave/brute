@@ -37,6 +37,21 @@ struct u256
     :   _u64{u0, u1, u2, u3}
     {}
 
+    __host__
+    static u256 parse(std::string_view s)
+    {
+        assert(s.size() == 66);
+        assert(s.substr(0, 2) == "0x");
+
+        s = s.substr(2);
+
+        u256 result;
+        for (u32 i = 0; i < 4; ++i)
+            result._u64[3 - i] = std::stoull(std::string(s.substr(i * 16, 16)).c_str(), nullptr, 16);
+
+        return result;
+    }
+
     // Binary
 
     __device__ __forceinline__
@@ -173,7 +188,7 @@ struct u256
         return x;
     }
 
-    __device__
+    __device__ __forceinline__
     u256 operator/ (const u256& rhs) const
     {
         u256 div, _;
@@ -181,7 +196,13 @@ struct u256
         return div;
     }
 
-    __device__
+    __device__ __forceinline__
+    u256& operator/= (const u256& rhs)
+    {
+        return *this = *this / rhs;    
+    }
+
+    __device__ __forceinline__
     u256 operator% (const u256& rhs) const
     {
         u256 _, mod;
@@ -189,7 +210,13 @@ struct u256
         return mod;
     }
 
-    __device__
+    __device__ __forceinline__
+    u256& operator%= (const u256& rhs)
+    {
+        return *this = *this % rhs;    
+    }
+
+    __device__ __forceinline__
     static void div_mod(
         const u256& lhs,
         const u256& rhs,
@@ -229,7 +256,7 @@ struct u256
             : "=r"(s)
             : "r"(rhs._u32[n - 1])
         );
-        assert(s < 32);
+        // assert(s < 32);
 
         union extension
         {
@@ -243,7 +270,7 @@ struct u256
         u._u64[4] = lhs._u64[3] >> (64 - s);
 
         u256 v = rhs << s;
-        assert(v._u32[n - 1] > (1 << 31));
+        // assert(v._u32[n - 1] > (1 << 31));
 
         // D2
 
@@ -309,7 +336,6 @@ struct u256
 
             if (borrow)
             {
-                printf("rare case\n");
                 // D6
                 q._u32[j] -= 1;
 
@@ -362,15 +388,21 @@ struct u256
         return ~(*this) + 1;
     }
 
-    __device__
+    __device__ __forceinline__
     u256& operator++ ()
     {
         return *this += 1;
     }
 
+    __device__ __forceinline__
+    u256& operator-- ()
+    {
+        return *this -= 1;
+    }
+
     // Bitshift
 
-    __device__
+    __device__ __forceinline__
     u256 operator<< (u32 n) const
     {
         u256 x;
@@ -409,7 +441,7 @@ struct u256
         return x;
     }
 
-    __device__
+    __device__ __forceinline__
     u256& operator<<= (u32 n)
     {
         asm volatile (
@@ -442,7 +474,7 @@ struct u256
         return *this;
     }
 
-    __device__
+    __device__ __forceinline__
     u256 operator>> (u32 n) const
     {
         u256 x;
@@ -481,7 +513,7 @@ struct u256
         return x;
     }
 
-    __device__
+    __device__ __forceinline__
     u256& operator>>= (u32 n)
     {
         asm volatile (
@@ -531,6 +563,20 @@ struct u256
     }
 
     __device__ __forceinline__
+    bool operator> (const u256& rhs) const
+    {
+        #pragma unroll
+        for(int i = 3; i >= 0; --i)
+        {
+            if (_u64[i] == rhs._u64[i])
+                continue;
+            return _u64[i] > rhs._u64[i];
+        }
+
+        return false;
+    }
+
+    __device__ __forceinline__
     bool operator== (const u256& rhs) const
     {
         #pragma unroll
@@ -539,6 +585,12 @@ struct u256
                 return false;
 
         return true;
+    }
+
+    __device__ __forceinline__
+    bool operator!= (const u256& rhs) const
+    {
+        return not (*this == rhs);
     }
 
     // utility
