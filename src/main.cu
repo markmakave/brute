@@ -8,29 +8,30 @@
 
 #include "cuda/sha256.cuh"
 #include "cuda/u256.cuh"
-#include "cuda/ecdsa.cuh"
 
 #define CUDA_CHECK(x) if (auto error = (x); error != cudaSuccess) std::cerr << "CUDA Error " __FILE__ ":" << __LINE__ << ": " << cudaGetErrorString(error) << '\n';
 
-__managed__ lumina::ecdsa::u256 x;
+__managed__ lumina::ecdsa::u256 x, x_div, x_mod;
 
 __global__ void kernel()
 {
-    x = x / 1;
+    lumina::ecdsa::u256 n(7);
+    x_div = x / n;
+    x_mod = x % n;
 }
 
 #include <cmath>
 
 int main()
 {
-    x = lumina::ecdsa::u256(1, 2, 3, 4);
+    x = lumina::ecdsa::u256(13);
 
     std::cout << x << '\n';
 
     kernel <<<1, 1>>> ();
     CUDA_CHECK(cudaDeviceSynchronize());
 
-    std::cout << x << '\n';
+    std::cout << x_div << '\n' << x_mod << '\n';
 
     // static constexpr size_t N = 1024 * 1024;
 
